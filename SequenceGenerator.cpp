@@ -7,7 +7,7 @@
 #include "ComplexGenerators.h"
 
 template<typename T>
-std::tuple<std::chrono::nanoseconds, long double, long double> long_numbers_generate(NumbersGenerator<T>& gen, std::vector<T>& numbers, size_t SIZE = 10000) {
+std::tuple<std::chrono::nanoseconds, long double, long double, long double> long_numbers_generate(NumbersGenerator<T>& gen, std::vector<T>& numbers, size_t SIZE = 10000) {
 	numbers.reserve(SIZE);
 	auto begin = std::chrono::high_resolution_clock::now();
 	while (SIZE--) {
@@ -15,19 +15,19 @@ std::tuple<std::chrono::nanoseconds, long double, long double> long_numbers_gene
 	}
 	auto end = std::chrono::high_resolution_clock::now();
 	std::unordered_map<T, size_t> repeated{};
-	long double sum{0}, entropy{ 0.0 };
+	long double sum{0}, entropy = log2 (numbers.size ()), delta { 0.0 };
 	//p(x)=C/N
 	//entropy=-E(p(x)log2p(x))=E(C*(log2(N)-log2(C)))/N
 	//log2p(x) = log2(C)-log2(N)
-	long double log2N = log2 (numbers.size ());
+	//entropy=log2N-E(C*log2C)/N
 	for (T& value : numbers) {
 		sum += value;
 		++(repeated[value]);
 	}
 	for (auto& vals : repeated) {
-		entropy += vals.second * (log2N - log2 (vals.second));
+		delta += vals.second * log2 (vals.second);
 	}
-	entropy /= numbers.size ();
+	entropy -= delta / numbers.size ();
 	long double stddev_sum{ 0 }, mean = sum / numbers.size ();
 	for (T& value : numbers) {
 		stddev_sum += (value - mean) * (value - mean);
@@ -35,7 +35,7 @@ std::tuple<std::chrono::nanoseconds, long double, long double> long_numbers_gene
 	long double stddev = stddev_sum;
 	stddev /= numbers.size();
 	stddev = sqrt(stddev);
-	return { std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin), stddev , entropy };
+	return { std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin), stddev , entropy , log2 (numbers.size ()) };
 }
 template<typename T, bool need_print>
 void print(unique_ptr<BaseGenerator>& ref, const char* msg = nullptr, size_t count = 10000) {
@@ -46,6 +46,7 @@ void print(unique_ptr<BaseGenerator>& ref, const char* msg = nullptr, size_t cou
 	auto nanoseconds = std::get<0>(res).count ();
 	auto stddev = std::get<1>(res);
 	auto entropy = std::get<2>(res);
+	auto max_e = std::get<3>(res);
 	std::cout << "Method: " << (msg ? msg : "unknown") << '\n';
 	if (need_print) {
 		for (T& val : numbers) {
@@ -53,7 +54,7 @@ void print(unique_ptr<BaseGenerator>& ref, const char* msg = nullptr, size_t cou
 		}
 		std::cout << '\n';
 	}
-	std::cout << "Generated " << numbers.size() << " numbers by " << nanoseconds << " ns with standard deviation = " << stddev << " and entropy = " << entropy << ".\n";
+	std::cout << "Generated " << numbers.size() << " numbers by " << nanoseconds << " ns with standard deviation = " << stddev << " and entropy = " << entropy << ", max = " << max_e << ".\n";
 }
 
 int main () {
